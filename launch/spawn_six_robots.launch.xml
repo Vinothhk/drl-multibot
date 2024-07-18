@@ -1,0 +1,6 @@
+<?xml version='1.0'?>
+<launch>
+    <include file="$(find-pkg-share turtlebot)/launch/world.launch.py"/>
+    <include file="$(find-pkg-share turtlebot)/launch/six_rsp.launch.py"/>
+    <include file="$(find-pkg-share turtlebot)/launch/spawn_six_description.launch.py"/>
+</launch>
