@@ -31,9 +31,6 @@ if(BUILD_TESTING)
 endif()
 
 install(PROGRAMS
-    dqn_agent/dqn_agent.py
-    dqn_environment/dqn_environment.py
-    dqn_gazebo/dqn_gazebo.py
     dqn_agent/dqn_agent_1.py
     dqn_environment/dqn_environment_1.py
     dqn_gazebo/dqn_gazebo_1.py
@@ -43,11 +40,23 @@ install(PROGRAMS
     dqn_agent/dqn_agent_3.py
     dqn_environment/dqn_environment_3.py
     dqn_gazebo/dqn_gazebo_3.py
-    dqn_test/dqn_test.py
 
     dqn_environment/env_test_1.py
     dqn_gazebo/gazebo_test_1.py
     dqn_test/dqn_test_1.py
+
+    graphs/action1.py
+    graphs/result1.py
+    graphs/action2.py
+    graphs/result2.py
+    graphs/action3.py
+    graphs/result3.py
+
+    algorithms/maxq.py
+    algorithms/cqlite.py
+    algorithms/sarsa.py
+    algorithms/qlearning.py
+    
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -57,6 +66,7 @@ install(
     urdf
     rviz
     launch
+    algorithms
     meshes
     models
     config

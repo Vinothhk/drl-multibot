@@ -194,7 +194,7 @@ class QLearningAgent(Node):
                 self.get_logger().info('Training Complete')
                 self.print_evaluation_matrix()
             
-            print(state)
+            #print(state)
 
     def get_action(self, state):
         if np.random.rand() <= self.epsilon:
@@ -220,9 +220,10 @@ class QLearningAgent(Node):
         average_cpu_usage = sum(self.cpu_usages[-self.evaluation_interval:]) / len(self.cpu_usages[-self.evaluation_interval:])
         average_memory_usage = sum(self.memory_usages[-self.evaluation_interval:]) / len(self.memory_usages[-self.evaluation_interval:])
         
-        self.get_logger().info(f'Average Reward: {average_reward:.2f}')
         self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
-        self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
+        self.get_logger().info(f'Success rate: {self.successes/self.episode_size:.2f}')
+        self.get_logger().info(f'Cumulative rewards: {sum(self.rewards)}')
+        #self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
         self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
         self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
         self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")

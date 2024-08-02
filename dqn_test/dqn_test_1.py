@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-#
-# Copyright 2019 ROBOTIS CO., LTD.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# Authors: Ryan Shim, Gilbert
 
 import collections
 from keras.layers import Activation
@@ -29,26 +13,25 @@ import os
 import random
 import sys
 import time
+from math import sqrt
 import psutil
 import rclpy
 from rclpy.node import Node
-
+from rclpy.qos import QoSProfile
 from turtlebot3_msgs.srv import Dqn
-
+from std_msgs.msg import Float32MultiArray
+from nav_msgs.msg import Odometry
 
 class DQNTest(Node):
-    def __init__(self, stage):
+    def __init__(self):
         super().__init__('dqn_test')
 
         """************************************************************
         ** Initialise variables
         ************************************************************"""
-        # Stage
-
         # State size and action size
         self.state_size = 4
         self.action_size = 5
-        self.episode_size = 3000
         self.start_time = time.time()
         # DQN hyperparameter
         self.discount_factor = 0.99
@@ -62,7 +45,7 @@ class DQNTest(Node):
         self.rewards = []
         self.successes = 0
         self.failures = 0
-        self.episodes = 0
+        self.episodes = 11
         self.evaluation_interval = 10  # Evaluate every 100 episodes
 
         # Exploration metrics
@@ -82,9 +65,13 @@ class DQNTest(Node):
         self.model = self.build_model()
         self.target_model = self.build_model()
 
+        self.current_position = (0.0, 0.0)
+        self.last_position = (0.0, 0.0)
+        self.position_history = []
+        
         # Load saved models
         self.load_model = True
-        self.load_episode = 110
+        self.load_episode = 570 #110
         self.model_dir_path = os.path.dirname(os.path.realpath(__file__))
         self.model_dir_path = self.model_dir_path.replace("lib/turtlebot","share/turtlebot/model_weights")
         self.model_path = os.path.join(
@@ -104,7 +91,7 @@ class DQNTest(Node):
         ************************************************************"""
         # Initialise clients
         self.dqn_com_client = self.create_client(Dqn, 'bot_1/dqn_com')
-
+        self.odom_subscription = self.create_subscription(Odometry,'bot_1/odom',self.odom_callback,QoSProfile(depth=10))
         """************************************************************
         ** Start process
         ************************************************************"""
@@ -113,10 +100,17 @@ class DQNTest(Node):
     """*******************************************************************************
     ** Callback functions and relevant functions
     *******************************************************************************"""
+    def odom_callback(self, msg):
+        # Update the current position from the odometry data
+        self.last_position = self.current_position
+        self.current_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        # Store position for the current episode
+        self.position_history.append(self.current_position)
+        
     def process(self):
         global_step = 0
 
-        for episode in range(1,11):
+        for episode in range(1,self.episodes):
             print(f'Episode = {episode}')
             global_step += 1
             local_step = 0
@@ -126,7 +120,7 @@ class DQNTest(Node):
             done = False
             init = True
             score = 0
-
+            self.position_history = []
             # Reset DQN environment
             time.sleep(1.0)
 
@@ -176,7 +170,7 @@ class DQNTest(Node):
                         break
                         
                 self.rewards.append(score)
-                self.episodes += 1
+                #self.episodes += 1
 
                 if reward == 5:
                     self.successes += 1
@@ -184,24 +178,28 @@ class DQNTest(Node):
                     self.failures += 1
                 # While loop rate
                 time.sleep(0.01)
-        self.print_evaluation_matrix()
-            
+            print(f'Episode {episode} done!')
+            path_lenth = self.calculate_path_length(self.position_history)
+            print(f'Path length  = {path_lenth}\n Score = {score}')
+        #self.print_evaluation_matrix()
+        self.get_logger().info('Testing Completed..')
+        self.get_logger().info(f'Success Rate: {self.successes/self.episodes}')    
     
-    def print_evaluation_matrix(self):
-        end_time = time.time()
-        elapsed_time = end_time - self.start_time
-        average_reward = sum(self.rewards[-self.evaluation_interval:]) / self.evaluation_interval
-        exploration_percentage = (self.exploration_actions / self.total_actions) * 100
-        overlap_percentage = (len(self.coverage_area) / self.total_area) * 100
-        average_cpu_usage = sum(self.cpu_usages[-self.evaluation_interval:]) / len(self.cpu_usages[-self.evaluation_interval:])
-        average_memory_usage = sum(self.memory_usages[-self.evaluation_interval:]) / len(self.memory_usages[-self.evaluation_interval:])
+    # def print_evaluation_matrix(self):
+    #     end_time = time.time()
+    #     elapsed_time = end_time - self.start_time
+    #     average_reward = sum(self.rewards[-self.evaluation_interval:]) / self.evaluation_interval
+    #     exploration_percentage = (self.exploration_actions / self.total_actions) * 100
+    #     overlap_percentage = (len(self.coverage_area) / self.total_area) * 100
+    #     average_cpu_usage = sum(self.cpu_usages[-self.evaluation_interval:]) / len(self.cpu_usages[-self.evaluation_interval:])
+    #     average_memory_usage = sum(self.memory_usages[-self.evaluation_interval:]) / len(self.memory_usages[-self.evaluation_interval:])
         
-        self.get_logger().info(f'Average Reward: {average_reward:.2f}')
-        self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
-        self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
-        self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
-        self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
-        self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")
+    #     self.get_logger().info(f'Average Reward: {average_reward:.2f}')
+    #     self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
+    #     self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
+    #     self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
+    #     self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
+    #     self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")
 
     def build_model(self):
         model = Sequential()
@@ -226,12 +224,19 @@ class DQNTest(Node):
         else:
             state = numpy.asarray(state)
             q_value = self.model.predict(state.reshape(1, len(state)))
-            print(numpy.argmax(q_value[0]))
             return numpy.argmax(q_value[0])
-
+        
+    def calculate_path_length(self, path):
+        length = 0.0
+        for i in range(1, len(path)):
+            x1, y1 = path[i - 1]
+            x2, y2 = path[i]
+            length += sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+        return length
+    
 def main(args=None):
     rclpy.init(args=args)
-    dqn_test = DQNTest(args)
+    dqn_test = DQNTest()
     rclpy.spin(dqn_test)
 
     dqn_test.destroy()

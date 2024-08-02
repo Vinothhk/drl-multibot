@@ -9,7 +9,7 @@ import os
 
 def generate_launch_description():
     
-    print('Launching DRL Nodes for bot_1 ..')
+    print('Launching SARSA Nodes for bot_1 ..')
 
     return LaunchDescription([
         Node(
@@ -26,7 +26,7 @@ def generate_launch_description():
 
         Node(
             package='turtlebot',
-            executable='dqn_agent_1.py',
+            executable='sarsa.py',
             name='dqn_agent_1',
             output='screen'),
         

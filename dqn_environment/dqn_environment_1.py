@@ -155,7 +155,7 @@ class DQNEnvironmentOne(Node):
             while not self.task_fail_client.wait_for_service(timeout_sec=1.0):
                 self.get_logger().info('service not available, waiting again...')
             self.task_fail_client.call_async(req)
-
+        #print(f'len: {len(state)}')
         return state
 
     def reset(self):

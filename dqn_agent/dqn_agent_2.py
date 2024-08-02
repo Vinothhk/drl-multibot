@@ -10,15 +10,17 @@ from keras.optimizers import RMSprop
 import json
 import numpy
 import os
+import numpy as np
 import random
 import sys
 import time
 import psutil
+from datetime import datetime
 import rclpy
 from rclpy.node import Node
-from datetime import datetime
 from turtlebot3_msgs.srv import Dqn
-
+from rclpy.qos import QoSProfile
+from std_msgs.msg import Float32MultiArray
 
 class DQNAgentTwo(Node):
     def __init__(self):
@@ -27,11 +29,14 @@ class DQNAgentTwo(Node):
         """************************************************************
         ** Initialise variables
         ************************************************************"""
+        qos = QoSProfile(depth=10)
+        self.pub_result = self.create_publisher(Float32MultiArray,'/bot_2/result',qos)
+        self.pub_action = self.create_publisher(Float32MultiArray,'/bot_2/action',qos)
         
         # State size and action size
         self.state_size = 4
         self.action_size = 5
-        self.episode_size = 1000
+        self.episode_size = 100
 
         # DQN hyperparameter
         self.discount_factor = 0.99
@@ -57,11 +62,11 @@ class DQNAgentTwo(Node):
         self.model_dir_path = os.path.dirname(os.path.realpath(__file__))
         print(self.model_dir_path)
         self.model_dir_path = self.model_dir_path.replace("lib/turtlebot","share/turtlebot/model_weights")
-        self.model_path = os.path.join(self.model_dir_path,'model_two'+'_episode1'+str(self.load_episode)+'.h5')
+        self.model_path = os.path.join(self.model_dir_path,'model_two'+'_episode'+str(self.load_episode)+'.h5')
 
         if self.load_model:
             self.model.set_weights(load_model(self.model_path).get_weights())
-            with open(os.path.join(self.model_dir_path,'model_two'+'_episode1'+str(self.load_episode)+'.json')) as outfile:
+            with open(os.path.join(self.model_dir_path,'model_two'+'_episode'+str(self.load_episode)+'.json')) as outfile:
                 param = json.load(outfile)
                 self.epsilon = param.get('epsilon')
 
@@ -76,7 +81,7 @@ class DQNAgentTwo(Node):
         self.failures = 0
         self.episodes = 0
         self.evaluation_interval = 10  # Evaluate every 100 episodes
-
+        self.q_val = 0.0
         # Exploration metrics
         self.exploration_actions = 0
         self.total_actions = 0
@@ -107,7 +112,8 @@ class DQNAgentTwo(Node):
             done = False
             init = True
             score = 0
-
+            action_data = Float32MultiArray()
+            result_data = Float32MultiArray()
             # Reset DQN environment
             time.sleep(1.0)
 
@@ -121,7 +127,7 @@ class DQNAgentTwo(Node):
                     state = next_state
                     action = int(self.get_action(state))
                     self.total_actions += 1
-                    
+
                 # Send action and receive next state and reward
                 req = Dqn.Request()
                 req.action = action
@@ -164,8 +170,12 @@ class DQNAgentTwo(Node):
                         self.train_model(True)
                     elif global_step > self.train_start:
                         self.train_model()
-
+    
                     if done:
+                        print(f'Reward Score: {score}')
+                        #print(np.max(self.q_val))
+                        result_data.data = [float(score), float(np.max(self.q_val))]
+                        self.pub_result.publish(result_data)
                         # Update neural network
                         self.update_target_model()
 
@@ -189,7 +199,8 @@ class DQNAgentTwo(Node):
 
                 # While loop rate
                 time.sleep(0.01)
-
+            action_data.data = [float(action), score, reward]
+            self.pub_action.publish(action_data)
             # Update result and save model every 10 episodes
             if episode % 10 == 0:
                 self.model_path = os.path.join(
@@ -208,6 +219,8 @@ class DQNAgentTwo(Node):
             if episode == self.episode_size-1:
                 self.get_logger().info('Training Complete')
                 self.print_evaluation_matrix()
+            
+            #print(state)
                 
     def build_model(self):
         model = Sequential()
@@ -230,11 +243,13 @@ class DQNAgentTwo(Node):
 
     def get_action(self, state):
         if numpy.random.rand() <= self.epsilon:
+            self.exploration_actions += 1
             return random.randrange(self.action_size)
         else:
             state = numpy.asarray(state)
             q_value = self.model.predict(state.reshape(1, len(state)))
-            print(numpy.argmax(q_value[0]))
+            self.q_val  = q_value
+            #print(numpy.argmax(q_value[0]))
             return numpy.argmax(q_value[0])
 
     def append_sample(self, state, action, reward, next_state, done):
@@ -285,14 +300,15 @@ class DQNAgentTwo(Node):
         overlap_percentage = (len(self.coverage_area) / self.total_area) * 100
         average_cpu_usage = sum(self.cpu_usages[-self.evaluation_interval:]) / len(self.cpu_usages[-self.evaluation_interval:])
         average_memory_usage = sum(self.memory_usages[-self.evaluation_interval:]) / len(self.memory_usages[-self.evaluation_interval:])
-
-        print(f'[{datetime.now()}] Evaluation over last {self.episode_size-1} episodes:')
-        print(f'Average Reward: {average_reward:.2f}')
-        print(f'Exploration Percentage: {exploration_percentage:.2f}%')
-        print(f'Overlap Percentage: {overlap_percentage:.2f}%')
-        print(f'Average CPU Usage: {average_cpu_usage:.2f}%')
-        print(f'Average Memory Usage: {average_memory_usage:.2f}%')
-        print(f"Time Taken {elapsed_time:.2f} seconds")
+        
+        #self.get_logger().info(f'Average Reward: {average_reward:.2f}')
+        self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
+        self.get_logger().info(f'Success rate: {self.successes/self.episode_size:.2f}')
+        self.get_logger().info(f'Cumulative rewards: {sum(self.rewards)}')
+        #self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
+        self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
+        self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
+        self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")
         
 def main(args=None):
     rclpy.init(args=args)

@@ -30,7 +30,8 @@ class CqLiteAgent(Node):
         self.epsilon = 1.0
         self.epsilon_decay = 0.99
         self.epsilon_min = 0.05
-
+        
+        self.max_q = 0.0    
         self.feature_size = self.state_size  # Number of features for linear approximation
         self.weights = np.zeros((self.feature_size, self.action_size))
 
@@ -53,7 +54,6 @@ class CqLiteAgent(Node):
         self.failures = 0
         self.episodes = 0
         self.evaluation_interval = 10
-
         self.exploration_actions = 0
         self.total_actions = 0
 
@@ -114,7 +114,7 @@ class CqLiteAgent(Node):
 
                             cpu_usage = psutil.cpu_percent()
                             memory_usage = psutil.virtual_memory().percent
-                            self.cpu_usages.append(cpu_usage)
+                            self. cpu_usages.append(cpu_usage)
                             self.memory_usages.append(memory_usage)
                         else:
                             self.get_logger().error(
@@ -126,8 +126,7 @@ class CqLiteAgent(Node):
                     self.update_weights(state, action, reward, next_state, next_action, done)
 
                     if done:
-                        print(f'score: {score}')
-                        result_data.data = [float(score)]
+                        result_data.data = [float(score), float(np.max(self.max_q))]
                         self.pub_result.publish(result_data)
                         
                         print(
@@ -164,7 +163,7 @@ class CqLiteAgent(Node):
                 self.get_logger().info('Training Complete')
                 self.print_evaluation_matrix()
             
-            print(state)
+            #print(state)
 
     def get_action(self, state):
         if np.random.rand() <= self.epsilon:
@@ -172,6 +171,7 @@ class CqLiteAgent(Node):
             return random.randint(0, self.action_size - 1)
         else:
             q_values = self.predict_q_values(state)
+            self.max_q = np.max(q_values)
             return np.argmax(q_values)
 
     def predict_q_values(self, state):
@@ -207,9 +207,12 @@ class CqLiteAgent(Node):
         average_cpu_usage = sum(self.cpu_usages[-self.evaluation_interval:]) / len(self.cpu_usages[-self.evaluation_interval:])
         average_memory_usage = sum(self.memory_usages[-self.evaluation_interval:]) / len(self.memory_usages[-self.evaluation_interval:])
         
-        self.get_logger().info(f'Average Reward: {average_reward:.2f}')
+        #self.get_logger().info(f'Average Reward: {average_reward:.2f}')
+        #Cumulative Rewards, Exploration Rate, Success Rate, No.of steps for episodes
         self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
-        self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
+        self.get_logger().info(f'Success rate: {self.successes/self.episode_size:.2f}')
+        self.get_logger().info(f'Cumulative rewards: {sum(self.rewards)}')
+        #self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
         self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
         self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
         self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")

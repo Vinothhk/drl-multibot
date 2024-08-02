@@ -91,6 +91,8 @@ class DQNAgentOne(Node):
         self.total_area = 1000  # Example total area; adjust according to your environment
         self.cpu_usages = []
         self.memory_usages = []
+        self.exploration = 0
+        self.exploitation = 0
         """************************************************************
         ** Start process
         ************************************************************"""
@@ -303,9 +305,7 @@ class DQNAgentOne(Node):
         
         #self.get_logger().info(f'Average Reward: {average_reward:.2f}')
         self.get_logger().info(f'Exploration Percentage: {exploration_percentage:.2f}%')
-        self.get_logger().info(f'Success rate: {self.successes/self.episode_size:.2f}')
-        self.get_logger().info(f'Cumulative rewards: {sum(self.rewards)}')
-        #self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
+        self.get_logger().info(f'Overlap Percentage: {overlap_percentage:.2f}%')
         self.get_logger().info(f'Average CPU Usage: {average_cpu_usage:.2f}%')
         self.get_logger().info(f'Average Memory Usage: {average_memory_usage:.2f}%')
         self.get_logger().info(f"Time Taken {elapsed_time:.2f} seconds")
