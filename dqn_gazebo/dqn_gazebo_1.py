@@ -3,10 +3,11 @@
 import os
 import random
 import sys
+import time
 from time import sleep
 from gazebo_msgs.srv import DeleteEntity
 from gazebo_msgs.srv import SpawnEntity
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose,Twist
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
@@ -39,6 +40,7 @@ class DQNGazeboOne(Node):
         qos = QoSProfile(depth=10)
 
         # Initialise publishers
+        self.vel_pub = self.create_publisher(Twist,'/bot_1/cmd_vel',qos)
         self.goal_pose_pub = self.create_publisher(Pose, '/bot_1/goal_pose', qos)
 
         # Initialise client
@@ -81,12 +83,22 @@ class DQNGazeboOne(Node):
 
     def task_fail_callback(self, request, response):
         self.delete_entity()
-        self.reset_simulation()
+        #self.reset_simulation()
+        self.move_back()
         self.generate_goal_pose()
         print("reset the gazebo environment :(")
 
         return response
 
+    def move_back(self):
+        t = time.time()
+        vel = Twist()
+        vel.linear.x = -1.0
+        while t+2.0 > t:
+            self.vel_pub.publish(vel)
+            t = time.time()
+        self.get_logger().info('Moved Backwards')
+            
     def generate_goal_pose(self):
         goal_pose_list = [[1.0, 0.0], [2.0, -1.5], [0.0, -2.0], [2.0, 2.0], [0.8, 2.0],
                             [-1.9, 1.9], [-1.9, 0.2], [-1.9, -0.5], [-2.0, -2.0], [-0.5, -1.0]]
